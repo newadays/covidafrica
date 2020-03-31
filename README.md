@@ -1,0 +1,2 @@
+# covidng
+covid.ng
