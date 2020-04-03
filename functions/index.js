@@ -1,10 +1,13 @@
+/* eslint-disable consistent-return */
 // Chatbot functions
 const admin = require("firebase-admin");
 const functions = require("firebase-functions");
 const dialogflow = require("dialogflow");
 const XMLHttpRequest = require("xmlhttprequest").XMLHttpRequest;
+const MessagingResponse = require("twilio").twiml.MessagingResponse;
 const dotenv = require("dotenv");
 dotenv.config()
+
 const api_key = process.env.WHATSAPP_API_KEY;
 const whatsapp_url = process.env.WHATSAPP_API_URL;
 const projectId = process.env.PROJECT_ID
@@ -16,7 +19,7 @@ async function dialogflowQuery(msg){
     // Send a query to the dialogflow agent, and return the query result.
     // * @param {string} projectId for the Project to be Used
     // A unique identifier for the given session
-    const sessionId = msg.from;
+    const sessionId = msg.From;
     // Create a new session
     const sessionClient = new dialogflow.v2.SessionsClient({
         // Optional Auth parameters.
@@ -52,7 +55,7 @@ async function dialogflowQuery(msg){
     return Promise.resolve(result);
 }
 
-// Handle WhatsApp Replies => Standard text
+// Handle WhatsApp Replies => Standard text (Clickatell)
 async function replyUser(reply) {
     console.log("reply => Sending reply to user", JSON.stringify(reply))
     var xhr = new XMLHttpRequest(),
@@ -79,37 +82,30 @@ async function replyUser(reply) {
     return ({"ReplyUser": "Message sent"})
 }
 
-
-
 exports.dialogflowFirebaseFulfillment = functions.https.onRequest(async (request, response) => {
     console.log("Dialogflow Request headers: " + JSON.stringify(request.headers));
     console.log("Dialogflow Request Body: " + JSON.stringify(request.body));
     try {
         // Retrieve messages based on whether it is text or image
-        let message = ("moText" in request.body.event) ? request.body.event.moText[0]: request.event.moMedia[0];
-        let content = ("moText" in request.body.event) ? request.body.event.moText[0].content: "Image Uploaded";
-        console.log("Message Sent =>", content);
-        let base64Img = ("moMedia" in request.body.event) ? request.body.event.moMedia[0].content : null;
+        let message = request.body;
+        let content = ("MediaUrl0" in request.body) ?  "Image Uploaded": request.body.Body;
+        console.log("Message Retrieved =>", content);
+        let base64Img = ("MediaUrl0" in request.body) ? request.body.MediaUrl0 : null;
         message.content = content
         console.log("Message Retrieved Successfully =>", JSON.stringify(message));
-
         let resp = await dialogflowQuery(message);
-
         let reply = {
-            to: message.from,
-            from: message.to,
+            to: message.To,
+            from: message.From,
             content: resp.fulfillmentText
         }
+        // Handle WhatsApp Replies => Standard text (Twilio)
+        const twiml = new MessagingResponse();
+        twiml.message(reply.content)
+        response.writeHead(200, { "Content-Type": "text/xml"});
+        return response.end(twiml.toString())
 
-
-        return response.status(200).send(replyUser(reply));
-        
     } catch (error) {
         console.log(error)
-        
     }
-
-
-
-
 });
