@@ -5,9 +5,14 @@ const functions = require("firebase-functions");
 const dialogflow = require("dialogflow");
 const XMLHttpRequest = require("xmlhttprequest").XMLHttpRequest;
 const MessagingResponse = require("twilio").twiml.MessagingResponse;
+//Initialize firebase libraries
+admin.initializeApp({
+    //Default credentials
+})
+const db = admin.firestore();
+//fetch env variables
 const dotenv = require("dotenv");
 dotenv.config()
-
 const api_key = process.env.WHATSAPP_API_KEY;
 const whatsapp_url = process.env.WHATSAPP_API_URL;
 const projectId = process.env.PROJECT_ID
@@ -82,6 +87,21 @@ async function replyUser(reply) {
     return ({"ReplyUser": "Message sent"})
 }
 
+// Write to firestore - incoming messages and replies
+async function writeToDb(chatmsg){
+    let msgRef = db.collection("chat").doc();
+    try {
+        const doc = await db.runTransaction(t => {
+            t.set(msgRef, chatmsg);
+            return Promise.resolve("Write Complete");
+        });
+        console.log(`Wrote ${JSON.stringify(doc)} to the Firestore database`)
+        return chatmsg;
+    } catch (error) {
+        console.log(`Failed to write ${chatmsg} to the Firestore database => ${err}`);
+    }
+}
+
 exports.dialogflowFirebaseFulfillment = functions.https.onRequest(async (request, response) => {
     console.log("Dialogflow Request headers: " + JSON.stringify(request.headers));
     console.log("Dialogflow Request Body: " + JSON.stringify(request.body));
@@ -93,10 +113,11 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest(async (request
         let base64Img = ("MediaUrl0" in request.body) ? request.body.MediaUrl0 : null;
         message.content = content
         console.log("Message Retrieved Successfully =>", JSON.stringify(message));
-        let resp = await dialogflowQuery(message);
+        let chat = await writeToDb(message)
+        let resp = await dialogflowQuery(chat);
         let reply = {
-            to: message.To,
-            from: message.From,
+            to: chat.To,
+            from: chat.From,
             content: resp.fulfillmentText
         }
         // Handle WhatsApp Replies => Standard text (Twilio)
