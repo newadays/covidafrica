@@ -15,7 +15,7 @@
   "dependencies": {
     "dialogflow": "^1.2.0",
     "dotenv": "^8.2.0",
-    "firebase-admin": "^8.10.0",
+    "firebase-admin": "^11.0.1",
     "firebase-functions": "^3.6.0",
     "xmlhttprequest": "^1.8.0"
   },
